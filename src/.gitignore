@@ -7,6 +7,8 @@
 !.gitignore
 !*.tex
 !*.bib
+!helpers
+!helpers/*.py
 
 # ... but never these:
 .showyourwork*
