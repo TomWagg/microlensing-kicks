@@ -42,7 +42,7 @@ class Kick():
 
     def __repr__(self):
         if isinstance(self.magnitude.value, float):
-            return "<Kick, magnitude={:1.2f}, phi={:1.2f}, theta={:1.2f}, time={:1.2f}>".format(self.magnitude, self.phi, self.theta)
+            return "<Kick, magnitude={:1.2f}, phi={:1.2f}, theta={:1.2f}, time={:1.2f}>".format(self.magnitude, self.phi, self.theta, self.t)
         else:
             return "<Kick, n_objects={}>".format(len(self.magnitude))
 
