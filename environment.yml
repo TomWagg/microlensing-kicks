@@ -16,3 +16,4 @@ dependencies:
   - seaborn
   - nbstripout
   - astroquery
+  - pytables
