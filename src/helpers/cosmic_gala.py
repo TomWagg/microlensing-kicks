@@ -130,8 +130,33 @@ def integrate_orbit_with_events(w0, potential=gala.potential.MilkyWayPotential()
     return full_orbit
 
 
+def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bin_num,
+                                max_ev_time=13.7 * u.Gyr, dt=1 * u.Myr):
+    """Evolve the orbit of a binary through the Galaxy using information from COSMIC bpp and kick info tables
 
-def fling_binary_through_galaxy(w0, potential, lookback_time, max_ev_time, bpp, kick_info, bin_num, dt=1 * u.Myr):
+    Parameters
+    ----------
+    w0 : `PhaseSpacePosition`
+        Phase space position of the binary
+    potential : `ga.potential.PotentialBase`
+        Galactic potential
+    lookback_time : `float`
+        Lookback time of binary
+    bpp : `Pandas DataFrame`
+        Table of evolution phase events from COSMIC
+    kick_info : `Pandas DataFrame`
+        Table of information about kicks from COSMIC
+    bin_num : `int`
+        Binary number of binary in COSMIC tables
+    max_ev_time : `float`, optional
+        Maximum evolution time in COSMIC simulation, by default 13.7*u.Gyr
+    dt : `float`, optional
+        Timestep size for integration, by default 1*u.Myr
+
+    Returns
+    -------
+    TODO
+    """
     # reduce tables to just the given binary
     bpp = bpp.loc[bin_num]
     kick_info = kick_info.loc[bin_num]
