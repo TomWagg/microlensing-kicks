@@ -1,7 +1,3 @@
-from cosmic.sample.initialbinarytable import InitialBinaryTable
-from cosmic.sample.sampler import independent
-from cosmic.evolve import Evolve
-
 import numpy as np
 import gala
 
@@ -9,21 +5,14 @@ import astropy.coordinates as coords
 import astropy.units as u
 import astropy.constants as const
 
-from schwimmbad import MultiPool
-
-import matplotlib.pyplot as plt
-
 from galaxy import draw_lookback_times, draw_radii, draw_heights, R_exp
 
 
-def final_systemic_velocity(v_sys_init, delta_v_sys_xyz, m_1, m_2, a):
-    """Calculate the final systemic velocity from a combination of the initial systemic velocity, natal kick,
-    Blauuw kick and orbital motion.
+def get_kick_differential(delta_v_sys_xyz, m_1, m_2, a, rho):
+    """Calculate the Differential from a combination of the natal kick, Blauuw kick and orbital motion.
 
     Parameters
     ----------
-    v_sys_init : `float array`
-        Initial system velocity in Galactocentric (v_R, v_T, v_z) coordinates
     delta_v_sys_xyz : `float array`
         Change in systemic velocity due to natal and Blauuw kicks in BSE (v_x, v_y, v_z) frame (see Fig A1 of
         Hurley+02)
@@ -32,35 +21,114 @@ def final_systemic_velocity(v_sys_init, delta_v_sys_xyz, m_1, m_2, a):
     m_2 : `float`
         Secondary Mass
     a : `float`
-        Separation
+        Binary separation
+    rho : `float`
+        Galactocentric radius
 
     Returns
     -------
-    v_sys_final : `float array`
-        Final systemic velocity
+    kick_differential : `CylindricalDifferential`
+        Kick differential
     """
     # calculate the orbital velocity ASSUMING A CIRCULAR ORBIT
     v_orb = np.sqrt(const.G * (m_1 + m_2) / a)
 
     # adjust change in velocity by orbital motion of supernova star
     delta_v_sys_xyz -= v_orb
-    delta_v_sys_xyz = delta_v_sys_xyz.to(u.km/u.s).value
 
     # orbital phase angle and inclination to Galactic plane
     theta = np.random.uniform(0, 2 * np.pi)
     phi = np.random.uniform(0, 2 * np.pi)
 
     # rotate (v_x, v_y, v_z) into Galactocentric (v_R, v_T, v_z')
-    delta_v_sys_RTz = [delta_v_sys_xyz[0] * np.cos(theta)
-                       - delta_v_sys_xyz[1] * np.sin(theta) * np.cos(phi)
-                       + delta_v_sys_xyz[2] * np.sin(theta) * np.sin(phi),
-                       delta_v_sys_xyz[0] * np.sin(theta)
-                       + delta_v_sys_xyz[1] * np.cos(theta) * np.cos(phi)
-                       - delta_v_sys_xyz[2] * np.cos(theta) * np.sin(phi),
-                       delta_v_sys_xyz[1] * np.sin(phi)
-                       + delta_v_sys_xyz[2] * np.cos(phi)] * u.km / u.s
+    v_R = delta_v_sys_xyz[0] * np.cos(theta) - delta_v_sys_xyz[1] * np.sin(theta) * np.cos(phi)\
+        + delta_v_sys_xyz[2] * np.sin(theta) * np.sin(phi)
+    v_T = delta_v_sys_xyz[0] * np.sin(theta) + delta_v_sys_xyz[1] * np.cos(theta) * np.cos(phi)\
+        - delta_v_sys_xyz[2] * np.cos(theta) * np.sin(phi)
+    v_z = delta_v_sys_xyz[1] * np.sin(phi) + delta_v_sys_xyz[2] * np.cos(phi)
 
-    return v_sys_init + delta_v_sys_RTz
+    with u.set_enabled_equivalencies(u.dimensionless_angles()):
+        kick_differential = coords.CylindricalDifferential(v_R, (v_T / rho).to(u.rad / u.Gyr), v_z)
+
+    return kick_differential
+
+
+def integrate_orbits_with_events(w0, potential=gala.potential.MilkyWayPotential(), events=None,
+                                 rng=np.random.default_rng(), **integrate_kwargs):
+    """Integrate PhaseSpacePosition in a potential with events that occur at certain times
+
+    Parameters
+    ----------
+    w0 : `ga.dynamics.PhaseSpacePosition`
+        Initial phase space position
+    potential : `ga.potential.PotentialBase`, optional
+        Potential in which you which to integrate the orbits, by default the MilkyWayPotential()
+    events : `list of objects`
+        Events that occur during the orbit evolution. Should contain the following parameters: `time`, `m_1`,
+        `m_2`, `a`, `ecc`, `delta_v_sys_xyz`
+    rng : `NumPy RandomNumberGenerator`
+        Which random number generator to use
+
+    Returns
+    -------
+    full_orbits : `ga.orbit.Orbit`
+        Orbits that have been integrated
+    """
+    # if there are no events then just integrate the whole thing
+    if events is None:
+        return potential.integrate_orbit(w0, **integrate_kwargs)
+
+    # work out what the timesteps would be without kicks
+    timesteps = gala.integrate.parse_time_specification(units=[u.s], **integrate_kwargs) * u.s
+
+    # start the cursor at the smallest timestep
+    time_cursor = timesteps[0]
+    current_w0 = w0
+
+    # keep track of the orbit data throughout
+    orbit_data = []
+
+    # loop over the events
+    for event in events:
+        # find the timesteps that occur before the kick
+        matching_timesteps = timesteps[np.logical_and(timesteps >= time_cursor, timesteps < event["time"])]
+
+        # integrate the orbit over these timesteps
+        orbits = potential.integrate_orbit(current_w0, t=matching_timesteps)
+
+        # save the orbit data
+        orbit_data.append(orbit_data.data)
+
+        # adjust the time
+        time_cursor = event["time"]
+
+        # get new PhaseSpacePosition(s)
+        current_w0 = orbits[-1]
+
+        # calculate the kick differential
+        kick_differential = get_kick_differential(delta_v_sys_xyz=events["delta_v_sys_xyz"],
+                                                  m_1=events["m_1"], m_2=events["m_2"], a=events["a"],
+                                                  rho=current_w0.pos.rho)
+
+        # update the velocity of the current PhaseSpacePosition
+        current_w0 = gala.dynamics.PhaseSpacePosition(pos=current_w0.pos,
+                                                      vel=current_w0.vel + kick_differential,
+                                                      frame=current_w0.frame)
+
+    # if we still have time left after the last event (very likely)
+    if time_cursor < timesteps[-1]:
+        # evolve the rest of the orbit out
+        matching_timesteps = timesteps[timesteps >= time_cursor]
+        orbits = potential.integrate_orbit(current_w0, t=matching_timesteps)
+        orbit_data.append(orbits.data)
+
+    orbit_data = coords.concatenate_representations(orbit_data)
+    full_orbits = gala.dynamics.orbit.Orbit(pos=orbit_data.without_differentials(),
+                                            vel=orbit_data.differentials["s"],
+                                            t=timesteps.to(u.Myr))
+
+    return full_orbits
+
 
 
 def fling_binary_through_galaxy(w0, pot, lookback_time, max_ev_time, bpp, kick_info, bin_num, dt=1 * u.Myr):
