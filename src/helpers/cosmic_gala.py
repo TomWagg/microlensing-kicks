@@ -133,9 +133,9 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
 
     Parameters
     ----------
-    w0 : `PhaseSpacePosition`
+    w0 : `gala.dynamics.PhaseSpacePosition`
         Phase space position of the binary
-    potential : `ga.potential.PotentialBase`
+    potential : `gala.potential.PotentialBase`
         Galactic potential
     lookback_time : `float`
         Lookback time of binary
@@ -152,7 +152,8 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
 
     Returns
     -------
-    TODO
+    orbit(s) : `gala.dynamics.Orbit or list`
+        Either a single orbit of the binary or a list of two orbits (one for each star)
     """
     # reduce tables to just the given binary
     bpp = bpp.loc[bin_num]
@@ -224,7 +225,7 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
 
 def evolve_binaries_in_galaxy(bpp, kick_info, galaxy_model=None,
                               galactic_potential=gala.potential.MilkyWayPotential(),
-                              max_ev_time=13.7 * u.Gyr, dispersion=5 * u.km / u.s):
+                              dispersion=5 * u.km / u.s, max_ev_time=13.7 * u.Gyr, dt=1 * u.Myr):
     # work out how many binaries we are going to evolve
     bin_nums = bpp["bin_num"].unique()
     n_bin = len(bin_nums)
@@ -260,10 +261,11 @@ def evolve_binaries_in_galaxy(bpp, kick_info, galaxy_model=None,
     w0s = gala.dynamics.PhaseSpacePosition(rep.with_differentials(dif))
 
     # evolve the orbits from birth until present day
-    # TODO: make this actually account for kicks haha (baby steps)
     orbits = []
-    for bin_num in bin_nums:
-        orbits.append(galactic_potential.integrate_orbit(w0s[bin_num], t1=lookback_time[bin_num],
-                                                         t2=max_ev_time, dt=1 * u.Myr))
+    for i, bin_num in enumerate(bin_nums):
+        orbits.append(fling_binary_through_galaxy(w0=w0s[i], potential=galactic_potential,
+                                                  lookback_time=lookback_time[i], bpp=bpp,
+                                                  kick_info=kick_info, bin_num=bin_num,
+                                                  max_ev_time=max_ev_time, dt=dt))
 
     return orbits
