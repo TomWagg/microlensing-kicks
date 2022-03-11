@@ -45,7 +45,7 @@ def get_kick_differential(delta_v_sys_xyz, m_1, m_2, a):
     v_Y = delta_v_sys_xyz[0] * np.sin(theta) + delta_v_sys_xyz[1] * np.cos(theta) * np.cos(phi)\
         - delta_v_sys_xyz[2] * np.cos(theta) * np.sin(phi)
     v_Z = delta_v_sys_xyz[1] * np.sin(phi) + delta_v_sys_xyz[2] * np.cos(phi)
-        
+
     kick_differential = coords.CartesianDifferential(v_X, v_Y, v_Z)
 
     return kick_differential
@@ -104,9 +104,8 @@ def integrate_orbit_with_events(w0, potential=gala.potential.MilkyWayPotential()
         current_w0 = orbit[-1]
 
         # calculate the kick differential
-        kick_differential = get_kick_differential(delta_v_sys_xyz=events["delta_v_sys_xyz"],
-                                                  m_1=events["m_1"], m_2=events["m_2"], a=events["a"],
-                                                  rho=current_w0.pos.rho)
+        kick_differential = get_kick_differential(delta_v_sys_xyz=event["delta_v_sys_xyz"],
+                                                  m_1=event["m_1"], m_2=event["m_2"], a=event["a"])
 
         # update the velocity of the current PhaseSpacePosition
         current_w0 = gala.dynamics.PhaseSpacePosition(pos=current_w0.pos,
@@ -179,7 +178,7 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
     else:
         assert len(kick_info) == len(bpp)
         events = [{
-            "time": bpp.iloc[i]["tphys"] * u.Myr,
+            "time": lookback_time + bpp.iloc[i]["tphys"] * u.Myr,
             "m_1": bpp.iloc[i]["mass_1"] * u.Msun,
             "m_2": bpp.iloc[i]["mass_2"] * u.Msun,
             "a": bpp.iloc[i]["sep"] * u.Rsun,
