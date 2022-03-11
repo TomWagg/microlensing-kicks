@@ -166,6 +166,7 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
     if not supernova_event_rows.any():
         return potential.integrate_orbit(w0, t1=lookback_time, t2=max_ev_time, dt=dt)
 
+    # reduce to just the supernova rows and ensure we have the same length in each table
     bpp = bpp[supernova_event_rows]
     assert len(kick_info) == len(bpp)
 
@@ -174,8 +175,38 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
 
     # iterate over the kick file and store the relevant information (for both stars if disruption will occur)
     if it_will_disrupt:
-        # TODO: implement
-        pass
+        events_1, events_2 = [], []
+        for i in range(len(kick_info)):
+            default_event = {
+                "time": lookback_time + bpp.iloc[i]["tphys"] * u.Myr,
+                "m_1": bpp.iloc[i]["mass_1"] * u.Msun,
+                "m_2": bpp.iloc[i]["mass_2"] * u.Msun,
+                "a": bpp.iloc[i]["sep"] * u.Rsun,
+                "ecc": bpp.iloc[i]["ecc"],
+                "delta_v_sys_xyz": [kick_info.iloc[i]["delta_vsysx_1"],
+                                    kick_info.iloc[i]["delta_vsysy_1"],
+                                    kick_info.iloc[i]["delta_vsysz_1"]] * u.km / u.s
+            }
+            if kick_info.iloc[i]["disrupted"] == 1.0:
+                events_1.append(default_event)
+                events_2.append({
+                    "time": lookback_time + bpp.iloc[i]["tphys"] * u.Myr,
+                    "m_1": bpp.iloc[i]["mass_1"] * u.Msun,
+                    "m_2": bpp.iloc[i]["mass_2"] * u.Msun,
+                    "a": bpp.iloc[i]["sep"] * u.Rsun,
+                    "ecc": bpp.iloc[i]["ecc"],
+                    "delta_v_sys_xyz": [kick_info.iloc[i]["delta_vsysx_2"],
+                                        kick_info.iloc[i]["delta_vsysy_2"],
+                                        kick_info.iloc[i]["delta_vsysz_2"]] * u.km / u.s
+                })
+            else:
+                events_1.append(default_event)
+                events_2.append(default_event)
+        return [integrate_orbit_with_events(w0, potential=potential, events=events_1,
+                                            t1=lookback_time, t2=max_ev_time, dt=dt),
+                integrate_orbit_with_events(w0, potential=potential, events=events_2,
+                                            t1=lookback_time, t2=max_ev_time, dt=dt)]
+
     else:
         events = [{
             "time": lookback_time + bpp.iloc[i]["tphys"] * u.Myr,
