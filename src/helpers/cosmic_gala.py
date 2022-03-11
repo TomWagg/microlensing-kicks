@@ -167,6 +167,7 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
         return potential.integrate_orbit(w0, t1=lookback_time, t2=max_ev_time, dt=dt)
 
     bpp = bpp[supernova_event_rows]
+    assert len(kick_info) == len(bpp)
 
     # check if the the binary is going to disrupt at any point
     it_will_disrupt = (kick_info["disrupted"] == 1.0).any()
@@ -176,7 +177,6 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, bpp, kick_info, bi
         # TODO: implement
         pass
     else:
-        assert len(kick_info) == len(bpp)
         events = [{
             "time": lookback_time + bpp.iloc[i]["tphys"] * u.Myr,
             "m_1": bpp.iloc[i]["mass_1"] * u.Msun,
