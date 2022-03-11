@@ -142,7 +142,7 @@ def fling_binary_through_galaxy(w0, potential, lookback_time, max_ev_time, bpp, 
 
     # if no supernova occurs then just do regular orbit integration
     if not supernova_event_rows.any():
-        return pot.integrate_orbit(w0, t1=lookback_time, t2=max_ev_time, dt=dt)
+        return potential.integrate_orbit(w0, t1=lookback_time, t2=max_ev_time, dt=dt)
 
     bpp = bpp[supernova_event_rows]
 
