@@ -63,6 +63,42 @@ def final_systemic_velocity(v_sys_init, delta_v_sys_xyz, m_1, m_2, a):
     return v_sys_init + delta_v_sys_RTz
 
 
+def fling_binary_through_galaxy(w0, pot, lookback_time, max_ev_time, bpp, kick_info, bin_num, dt=1 * u.Myr):
+    # reduce tables to just the given binary
+    bpp = bpp.loc[bin_num]
+    kick_info = kick_info.loc[bin_num]
+    kick_info = kick_info[kick_info["star"] > 0.0]
+
+    # mask for the rows that contain supernova events
+    supernova_event_rows = bpp["evol_type"].isin([15, 16])
+
+    # if no supernova occurs then just do regular orbit integration
+    if not supernova_event_rows.any():
+        return pot.integrate_orbit(w0, t1=lookback_time, t2=max_ev_time, dt=dt)
+
+    bpp = bpp[supernova_event_rows]
+
+    # check if the the binary is going to disrupt at any point
+    it_will_disrupt = (kick_info["disrupted"] == 1.0).any()
+
+    # iterate over the kick file and store the relevant information (for both stars if disruption will occur)
+    if it_will_disrupt:
+        # TODO: implement
+        pass
+    else:
+        assert len(kick_info) == len(bpp)
+        events = [{
+            "time": bpp.iloc[i]["tphys"] * u.Myr,
+            "m_1": bpp.iloc[i]["mass_1"] * u.Msun,
+            "m_2": bpp.iloc[i]["mass_2"] * u.Msun,
+            "a": bpp.iloc[i]["sep"] * u.Rsun,
+            "ecc": bpp.iloc[i]["ecc"],
+            "delta_v_sys_xyz": [kick_info.iloc[i]["delta_vsysx_1"],
+                                kick_info.iloc[i]["delta_vsysy_1"],
+                                kick_info.iloc[i]["delta_vsysz_1"]] * u.km / u.s
+        } for i in range(len(kick_info))]
+
+
 def evolve_binaries_in_galaxy(bpp, kick_info, galaxy_model=None,
                               galactic_potential=gala.potential.MilkyWayPotential(),
                               max_ev_time=13.7 * u.Gyr, dispersion=5 * u.km / u.s):
