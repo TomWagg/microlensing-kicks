@@ -53,8 +53,8 @@ def get_kick_differential(delta_v_sys_xyz, m_1, m_2, a, rho):
     return kick_differential
 
 
-def integrate_orbits_with_events(w0, potential=gala.potential.MilkyWayPotential(), events=None,
-                                 rng=np.random.default_rng(), **integrate_kwargs):
+def integrate_orbit_with_events(w0, potential=gala.potential.MilkyWayPotential(), events=None,
+                                rng=np.random.default_rng(), **integrate_kwargs):
     """Integrate PhaseSpacePosition in a potential with events that occur at certain times
 
     Parameters
@@ -71,8 +71,8 @@ def integrate_orbits_with_events(w0, potential=gala.potential.MilkyWayPotential(
 
     Returns
     -------
-    full_orbits : `ga.orbit.Orbit`
-        Orbits that have been integrated
+    full_orbit : `ga.orbit.Orbit`
+        Orbit that have been integrated
     """
     # if there are no events then just integrate the whole thing
     if events is None:
@@ -94,10 +94,10 @@ def integrate_orbits_with_events(w0, potential=gala.potential.MilkyWayPotential(
         matching_timesteps = timesteps[np.logical_and(timesteps >= time_cursor, timesteps < event["time"])]
 
         # integrate the orbit over these timesteps
-        orbits = potential.integrate_orbit(current_w0, t=matching_timesteps)
+        orbit = potential.integrate_orbit(current_w0, t=matching_timesteps)
 
         # save the orbit data
-        orbit_data.append(orbit_data.data)
+        orbit_data.append(orbit.data)
 
         # adjust the time
         time_cursor = event["time"]
@@ -119,19 +119,19 @@ def integrate_orbits_with_events(w0, potential=gala.potential.MilkyWayPotential(
     if time_cursor < timesteps[-1]:
         # evolve the rest of the orbit out
         matching_timesteps = timesteps[timesteps >= time_cursor]
-        orbits = potential.integrate_orbit(current_w0, t=matching_timesteps)
-        orbit_data.append(orbits.data)
+        orbit = potential.integrate_orbit(current_w0, t=matching_timesteps)
+        orbit_data.append(orbit.data)
 
     orbit_data = coords.concatenate_representations(orbit_data)
-    full_orbits = gala.dynamics.orbit.Orbit(pos=orbit_data.without_differentials(),
-                                            vel=orbit_data.differentials["s"],
-                                            t=timesteps.to(u.Myr))
+    full_orbit = gala.dynamics.orbit.Orbit(pos=orbit_data.without_differentials(),
+                                           vel=orbit_data.differentials["s"],
+                                           t=timesteps.to(u.Myr))
 
-    return full_orbits
+    return full_orbit
 
 
 
-def fling_binary_through_galaxy(w0, pot, lookback_time, max_ev_time, bpp, kick_info, bin_num, dt=1 * u.Myr):
+def fling_binary_through_galaxy(w0, potential, lookback_time, max_ev_time, bpp, kick_info, bin_num, dt=1 * u.Myr):
     # reduce tables to just the given binary
     bpp = bpp.loc[bin_num]
     kick_info = kick_info.loc[bin_num]
@@ -165,6 +165,8 @@ def fling_binary_through_galaxy(w0, pot, lookback_time, max_ev_time, bpp, kick_i
                                 kick_info.iloc[i]["delta_vsysy_1"],
                                 kick_info.iloc[i]["delta_vsysz_1"]] * u.km / u.s
         } for i in range(len(kick_info))]
+        return integrate_orbit_with_events(w0, potential=potential, events=events,
+                                           t1=lookback_time, t2=max_ev_time, dt=dt)
 
 
 def evolve_binaries_in_galaxy(bpp, kick_info, galaxy_model=None,
