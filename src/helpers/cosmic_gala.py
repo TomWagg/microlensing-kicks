@@ -8,7 +8,7 @@ import astropy.constants as const
 from galaxy import draw_lookback_times, draw_radii, draw_heights, R_exp
 
 
-def get_kick_differential(delta_v_sys_xyz, m_1, m_2, a, rho):
+def get_kick_differential(delta_v_sys_xyz, m_1, m_2, a):
     """Calculate the Differential from a combination of the natal kick, Blauuw kick and orbital motion.
 
     Parameters
@@ -22,8 +22,6 @@ def get_kick_differential(delta_v_sys_xyz, m_1, m_2, a, rho):
         Secondary Mass
     a : `float`
         Binary separation
-    rho : `float`
-        Galactocentric radius
 
     Returns
     -------
@@ -31,24 +29,24 @@ def get_kick_differential(delta_v_sys_xyz, m_1, m_2, a, rho):
         Kick differential
     """
     # calculate the orbital velocity ASSUMING A CIRCULAR ORBIT
-    v_orb = np.sqrt(const.G * (m_1 + m_2) / a)
+    if a.value > 0.0:
+        v_orb = np.sqrt(const.G * (m_1 + m_2) / a)
 
-    # adjust change in velocity by orbital motion of supernova star
-    delta_v_sys_xyz -= v_orb
+        # adjust change in velocity by orbital motion of supernova star
+        delta_v_sys_xyz -= v_orb
 
     # orbital phase angle and inclination to Galactic plane
     theta = np.random.uniform(0, 2 * np.pi)
     phi = np.random.uniform(0, 2 * np.pi)
 
-    # rotate (v_x, v_y, v_z) into Galactocentric (v_R, v_T, v_z')
-    v_R = delta_v_sys_xyz[0] * np.cos(theta) - delta_v_sys_xyz[1] * np.sin(theta) * np.cos(phi)\
+    # rotate BSE (v_x, v_y, v_z) into Galactocentric (v_X, v_Y, v_Z)
+    v_X = delta_v_sys_xyz[0] * np.cos(theta) - delta_v_sys_xyz[1] * np.sin(theta) * np.cos(phi)\
         + delta_v_sys_xyz[2] * np.sin(theta) * np.sin(phi)
-    v_T = delta_v_sys_xyz[0] * np.sin(theta) + delta_v_sys_xyz[1] * np.cos(theta) * np.cos(phi)\
+    v_Y = delta_v_sys_xyz[0] * np.sin(theta) + delta_v_sys_xyz[1] * np.cos(theta) * np.cos(phi)\
         - delta_v_sys_xyz[2] * np.cos(theta) * np.sin(phi)
-    v_z = delta_v_sys_xyz[1] * np.sin(phi) + delta_v_sys_xyz[2] * np.cos(phi)
-
-    with u.set_enabled_equivalencies(u.dimensionless_angles()):
-        kick_differential = coords.CylindricalDifferential(v_R, (v_T / rho).to(u.rad / u.Gyr), v_z)
+    v_Z = delta_v_sys_xyz[1] * np.sin(phi) + delta_v_sys_xyz[2] * np.cos(phi)
+        
+    kick_differential = coords.CartesianDifferential(v_X, v_Y, v_Z)
 
     return kick_differential
 
@@ -103,7 +101,7 @@ def integrate_orbit_with_events(w0, potential=gala.potential.MilkyWayPotential()
         time_cursor = event["time"]
 
         # get new PhaseSpacePosition(s)
-        current_w0 = orbits[-1]
+        current_w0 = orbit[-1]
 
         # calculate the kick differential
         kick_differential = get_kick_differential(delta_v_sys_xyz=events["delta_v_sys_xyz"],
